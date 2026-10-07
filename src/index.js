@@ -7,6 +7,7 @@ import {
 } from 'discord.js';
 import { commands } from './commands.js';
 import { createStore } from './db.js';
+import { startXFeed } from './x-feed.js';
 
 const required = ['BOT_TOKEN', 'CLIENT_ID'];
 for (const key of required) if (!process.env[key]) throw new Error(`${key} .env içinde tanımlı değil.`);
@@ -173,3 +174,15 @@ client.on('interactionCreate', async (interaction) => {
 
 await store.load();
 await client.login(process.env.BOT_TOKEN);
+
+if (process.env.X_FEED_ENABLED === 'true' && process.env.X_FEED_CHANNEL_ID) {
+  const xStateFile = path.resolve(here, '..', process.env.X_FEED_STATE_FILE ?? './data/x-feed.json');
+  startXFeed({
+    client,
+    channelId: process.env.X_FEED_CHANNEL_ID,
+    handle: process.env.X_FEED_HANDLE ?? 'WARDOGS',
+    stateFile: xStateFile,
+    intervalMs: Number(process.env.X_FEED_INTERVAL_MS) || 120000,
+    sendExisting: process.env.X_FEED_SEND_EXISTING === 'true'
+  });
+}
