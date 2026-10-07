@@ -12,5 +12,8 @@ export const playerRoles = [
   { name: 'Tankçı', emoji: '🛡️', color: 0x57f287 },
   { name: 'Pilot', emoji: '✈️', color: 0xfee75c },
   { name: 'Komutan', emoji: '🎖️', color: 0xeb459e },
-  { name: 'İnşaatçı', emoji: '🔧', color: 0xed4245 }
+  { name: 'İnşaatçı', emoji: '🔧', color: 0xed4245 },
+  { name: 'Keskin Nişancı', emoji: '🎯', color: 0x9b59b6 },
+  { name: 'Şoför', emoji: '🚙', color: 0xe67e22 },
+  { name: 'Lojistik', emoji: '📦', color: 0x1abc9c }
 ];

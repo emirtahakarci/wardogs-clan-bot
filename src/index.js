@@ -30,9 +30,11 @@ async function deployCommands() {
 client.once('ready', async () => {
   console.log(`${client.user.tag} hazır.`);
   await deployCommands();
+  await ensureRolePanel(client);
 });
 
 async function ensurePlayerRoles(guild) {
+  await guild.roles.fetch();
   const roles = [];
   for (const definition of playerRoles) {
     let role = guild.roles.cache.find((item) => item.name === definition.name);
@@ -48,30 +50,54 @@ async function ensurePlayerRoles(guild) {
   return roles;
 }
 
+function buildRoleMenu(roles) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('wardogs-player-roles')
+    .setPlaceholder('Oynadığın rolleri seç...')
+    .setMinValues(0)
+    .setMaxValues(roles.length)
+    .addOptions(roles.map((role) => ({
+      label: role.name,
+      value: role.id,
+      emoji: role.emoji,
+      description: `${role.name} rolünü al veya kaldır`
+    })));
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+async function ensureRolePanel(client) {
+  if (!process.env.ROLE_CHANNEL_ID || !process.env.DISCORD_GUILD_ID) return;
+  const guild = await client.guilds.fetch(process.env.DISCORD_GUILD_ID);
+  const roles = await ensurePlayerRoles(guild);
+  const channel = await client.channels.fetch(process.env.ROLE_CHANNEL_ID);
+  if (!channel?.isTextBased()) return;
+
+  const messages = await channel.messages.fetch({ limit: 50 });
+  const panel = messages.find((message) => (
+    message.author.id === client.user.id
+    && message.components.some((row) => row.components.some((component) => component.customId === 'wardogs-player-roles'))
+  ));
+  const payload = {
+    content: '🎮 **WARDOGS Oyuncu Rolleri**\nAşağıdaki menüden oynadığın görevleri seçebilirsin. Birden fazla rol seçebilir, daha sonra değiştirebilirsin.',
+    components: [buildRoleMenu(roles)]
+  };
+  if (panel) await panel.edit(payload);
+  else await channel.send(payload);
+}
+
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand() && interaction.commandName === 'roller') {
     const roles = await ensurePlayerRoles(interaction.guild);
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('wardogs-player-roles')
-      .setPlaceholder('Oynadığın rolleri seç...')
-      .setMinValues(0)
-      .setMaxValues(roles.length)
-      .addOptions(roles.map((role) => ({
-        label: role.name,
-        value: role.id,
-        emoji: role.emoji,
-        description: `${role.name} rolünü al veya kaldır`
-      })));
 
     await interaction.reply({
-      content: 'WARDOGS içindeki görevlerini seç. Birden fazla rol seçebilirsin.',
-      components: [new ActionRowBuilder().addComponents(menu)],
+      content: `Rol seçim paneli hazırlandı. Rolleri ${process.env.ROLE_CHANNEL_ID ? `<#${process.env.ROLE_CHANNEL_ID}>` : 'rol kanalındaki menüden'} seçebilirsin. ${roles.length} rol mevcut.`,
       ephemeral: true
     });
     return;
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'wardogs-player-roles') {
+    await interaction.guild.roles.fetch();
     const managedRoleIds = new Set(
       playerRoles
         .map((definition) => interaction.guild.roles.cache.find((role) => role.name === definition.name)?.id)
