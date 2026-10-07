@@ -32,6 +32,7 @@ if (process.env.X_FEED_ENABLED === 'true' && process.env.X_FEED_CHANNEL_ID) {
   startXFeed({
     client,
     channelId: process.env.X_FEED_CHANNEL_ID,
+    trChannelId: process.env.X_FEED_TR_CHANNEL_ID,
     handle: process.env.X_FEED_HANDLE ?? 'WARDOGS',
     stateFile: xStateFile,
     intervalMs: Number(process.env.X_FEED_INTERVAL_MS) || 120000,

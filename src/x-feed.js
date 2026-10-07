@@ -43,7 +43,32 @@ function mediaUrl(post) {
   return asText(post.media?.photos?.[0]?.url) || asText(post.media?.videos?.[0]?.thumbnail_url);
 }
 
-export function startXFeed({ client, channelId, handle = 'WARDOGS', stateFile, intervalMs = 120000, sendExisting = false }) {
+async function translateToTurkish(value) {
+  const query = new URLSearchParams({ client: 'gtx', sl: 'auto', tl: 'tr', dt: 't', q: value });
+  const response = await fetch(`https://translate.googleapis.com/translate_a/single?${query}`);
+  if (!response.ok) throw new Error(`Çeviri servisi ${response.status} döndürdü.`);
+  const payload = await response.json();
+  const translated = Array.isArray(payload?.[0])
+    ? payload[0].map((part) => asText(part?.[0])).join('')
+    : '';
+  return translated || value;
+}
+
+function buildEmbed(post, handle, description, footerText) {
+  const embed = {
+    color: 0x1d9bf0,
+    author: { name: `@${post.author?.screen_name || handle}`, url: `https://x.com/${post.author?.screen_name || handle}` },
+    description: asText(description).slice(0, 4096) || 'Yeni paylaşım',
+    url: postUrl(post),
+    timestamp: post.created_at ? new Date(post.created_at).toISOString() : undefined,
+    footer: { text: footerText }
+  };
+  const image = mediaUrl(post);
+  if (image) embed.image = { url: image };
+  return embed;
+}
+
+export function startXFeed({ client, channelId, trChannelId, handle = 'WARDOGS', stateFile, intervalMs = 120000, sendExisting = false }) {
   let running = false;
 
   const poll = async () => {
@@ -65,19 +90,19 @@ export function startXFeed({ client, channelId, handle = 'WARDOGS', stateFile, i
 
       const channel = await client.channels.fetch(channelId);
       if (!channel?.isTextBased()) throw new Error(`X kanalı bulunamadı veya metin kanalı değil: ${channelId}`);
+      const trChannel = trChannelId ? await client.channels.fetch(trChannelId) : null;
+      if (trChannelId && !trChannel?.isTextBased()) throw new Error(`Türkçe kanal bulunamadı veya metin kanalı değil: ${trChannelId}`);
 
       for (const post of posts) {
-        const embed = {
-          color: 0x1d9bf0,
-          author: { name: `@${post.author?.screen_name || handle}`, url: `https://x.com/${post.author?.screen_name || handle}` },
-          description: asText(post.text).slice(0, 4096) || 'Yeni paylaşım',
-          url: postUrl(post),
-          timestamp: post.created_at ? new Date(post.created_at).toISOString() : undefined,
-          footer: { text: 'WARDOGS • X' }
-        };
-        const image = mediaUrl(post);
-        if (image) embed.image = { url: image };
-        await channel.send({ embeds: [embed] });
+        await channel.send({ embeds: [buildEmbed(post, handle, post.text, 'WARDOGS • X')] });
+        if (trChannel) {
+          try {
+            const translated = await translateToTurkish(asText(post.text));
+            await trChannel.send({ embeds: [buildEmbed(post, handle, translated, 'WARDOGS • Türkçe çeviri')] });
+          } catch (error) {
+            console.error(`X paylaşımı çevrilemedi (${post.id}):`, error);
+          }
+        }
       }
 
       await writeState(stateFile, { lastTimestamp: Number(newest.created_timestamp) || 0, lastId: asText(newest.id) });
